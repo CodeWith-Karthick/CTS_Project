@@ -105,7 +105,7 @@ def send_recovery_email(to_email, code):
     from_password = "ngjuvrcllvkvqrzm"
     subject = 'Password Recovery Code - MediFetch'
     body = f"""
-Your recovery code is: {code}**
+Your recovery code is: {code}
 
 It will expire in 15 minutes.
 
