@@ -77,7 +77,7 @@ def send_verification_email(to_email, code):
     body = f"""
 Hello,
 
-Your verification code is: **{code}**
+Your verification code is: {code}
 
 It will expire in 15 minutes.
 
@@ -105,7 +105,7 @@ def send_recovery_email(to_email, code):
     from_password = "ngjuvrcllvkvqrzm"
     subject = 'Password Recovery Code - MediFetch'
     body = f"""
-Your recovery code is: **{code}**
+Your recovery code is: {code}**
 
 It will expire in 15 minutes.
 
@@ -434,6 +434,11 @@ def groq_explain():
         Potential Savings: ${data.get('potential_savings'):,.2f}
         Key Factors: {data.get('explanation', 'N/A')}
         Keep it 2-3 sentences for investigators.
+        and need a well defined report and more details with 30 to 40 lines,and avoid * this symbol.
+        
+    Highlight key contributing factors and suggest next steps for investigators.
+    Keep  and i need the prevention and also a detailed report to have a good understanding of the claims and recommended
+    measure to prevent it,and need a well defined report and more details with 30 to 40 lines,and avoid * this symbol.
         """
         payload = {
             "model": "llama3-8b-8192",
@@ -458,6 +463,7 @@ def claim_form():
 
 
 @app.route('/api/claim/analyze', methods=['POST'])
+@app.route('/api/claim/analyze', methods=['POST'])
 def analyze_claim():
     try:
         data = request.get_json()
@@ -476,13 +482,33 @@ def analyze_claim():
             'ChronicCond_stroke': float(data['ChronicCond_stroke']),
         }
 
-        # 🔮 ML Model Logic (Replace this with your real model if available)
-        import random
-        fraud_probability = random.uniform(0.1, 0.95)
-        risk_level = "High" if fraud_probability > 0.8 else "Medium" if fraud_probability > 0.5 else "Low"
-        potential_savings = int(fraud_probability * 12000) if risk_level in ["High", "Medium"] else 0
+        # ✅ Use real model from predictor.py
+        df = pd.DataFrame([features])
 
-        # 🤖 Call Groq API for AI-generated explanation
+        # Ensure model is loaded
+        artifacts = load_model()  # This should return model, explainer, feature list
+        model = artifacts['model']
+        required_features = artifacts['features']
+
+        # Reorder and ensure all features exist
+        df = df[required_features]
+
+        # Predict
+        pred_proba = model.predict_proba(df)[0][1]  # Probability of fraud
+        fraud_probability = float(pred_proba)
+
+        # Determine risk level
+        if fraud_probability > 0.7:
+            risk_level = "High"
+        elif fraud_probability > 0.4:
+            risk_level = "Medium"
+        else:
+            risk_level = "Low"
+
+        # Potential savings
+        potential_savings = int(fraud_probability * features['InscClaimAmtReimbursed']) if risk_level != "Low" else 0
+
+        # Generate explanation via Groq
         explanation = get_groq_explanation(features, risk_level, fraud_probability, potential_savings)
 
         return jsonify({
@@ -493,8 +519,8 @@ def analyze_claim():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
+        app.logger.error(f"Error in /api/claim/analyze: {e}")
+        return jsonify({"error": "Prediction failed. Check server logs."}), 500
 
 def get_groq_explanation(features, risk_level, fraud_probability, potential_savings):
     prompt = f"""
@@ -519,7 +545,7 @@ def get_groq_explanation(features, risk_level, fraud_probability, potential_savi
     Provide a concise, professional explanation of why this claim is flagged as {risk_level} risk.
     Highlight key contributing factors and suggest next steps for investigators.
     Keep  and i need the prevention and also a detailed report to have a good understanding of the claims and recommended
-    measure to prevent it.
+    measure to prevent it,and need a well defined report and more details with 30 to 40 lines,and avoid * this symbol.
     """
 
     try:
@@ -587,7 +613,10 @@ def claim_groq_summary():
         - Fraud flags: {data.get('total_fraud_flags', 0)}
         - Potential savings: ${data.get('total_potential_savings', 0):,.2f}
         Top fraud drivers: {', '.join(data.get('top_fraud_drivers', ['N/A']))}
-        Provide a concise summary and 3 actionable recommendations for CMS investigators.
+        
+    Highlight key contributing factors and suggest next steps for investigators.
+    Keep  and i need the prevention and also a detailed report to have a good understanding of the claims and recommended
+    measure to prevent it,and need a well defined report and more details with 30 to 40 lines,and avoid * this symbol.
         """
         payload = {
             "model": "llama3-8b-8192",
@@ -616,6 +645,10 @@ def groq_explain_summary():
         - Potential savings: ${data.get('total_potential_savings', 0):,.2f}
         Top drivers: {', '.join(data.get('top_fraud_drivers', ['N/A']))}
         Provide a concise summary and 3 actionable recommendations.
+        
+    Highlight key contributing factors and suggest next steps for investigators.
+    Keep  and i need the prevention and also a detailed report to have a good understanding of the claims and recommended
+    measure to prevent it,and need a well defined report and more details with 30 to 40 lines,and avoid * this symbol.
         """
         payload = {
             "model": "llama3-8b-8192",
@@ -644,6 +677,10 @@ def claim_groq_explain():
         - Potential Savings: ${data.get('potential_savings'):,.2f}
         - Key Factors: {data.get('explanation', 'N/A')}
         Provide a 2-3 sentence explanation for investigators and suggest prevention.
+        
+    Highlight key contributing factors and suggest next steps for investigators.
+    Keep  and i need the prevention and also a detailed report to have a good understanding of the claims and recommended
+    measure to prevent it,and need a well defined report and more details with 30 to 40 lines,and avoid * this symbol.
         """
         payload = {
             "model": "llama3-8b-8192",
@@ -658,43 +695,104 @@ def claim_groq_explain():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+def get_groq_explanation_for_claim(input_data, prediction):
+    prompt = f"""
+    You are a Medicare fraud analyst. Explain why this claim was flagged.
+
+    Claim Details:
+    - Total Claims Per Beneficiary: {input_data['Total_Claims_Per_Bene']}
+    - Time in Hospital: {input_data['TimeInHptal']} days
+    - Provider Claim Frequency: {input_data['Provider_Claim_Frequency']}
+    - Stroke: {'Yes' if input_data['ChronicCond_stroke_Yes'] else 'No'}
+    - Deductible Paid: ${input_data['DeductibleAmtPaid']:,.2f}
+    - Part A Coverage: {input_data['NoOfMonths_PartACov']} months
+    - Part B Coverage: {input_data['NoOfMonths_PartBCov']} months
+    - OPD Flag: {'Yes' if input_data['OPD_Flag_Yes'] else 'No'}
+    - Diagnosis Count: {input_data['Diagnosis_Count']}
+    - Chronic Diseases: {input_data['ChronicDisease_Count']}
+    - Patient Age: {input_data['Age']}
+
+    Prediction Results:
+    - Fraud Probability: {prediction['fraud_probability']:.1%}
+    - Risk Level: {prediction['risk_level']}
+    - Action: {prediction['action']}
+    - Potential Savings: ${prediction['potential_savings']:,.2f}
+
+    Provide a professional, concise explanation (3–4 sentences) for investigators.
+    Highlight key contributing factors and suggest next steps for investigators.
+    Keep  and i need the prevention and also a detailed report to have a good understanding of the claims and recommended
+    measure to prevent it,and need a well defined report and more details with 30 to 40 lines,and avoid * this symbol.
+    """
+
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama3-8b-8192",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 200,
+                "temperature": 0.5
+            },
+            timeout=10
+        )
+        res = response.json()
+        return res['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        app.logger.error(f"Groq API error: {e}")
+        return "AI explanation could not be generated due to an internal error."
+    
 @app.route('/predict_claim_single', methods=['POST'])
 def predict_claim_single():
     try:
         data = request.get_json()
-        if not data:  # ← Fixed: Check if data is None or empty
+        if not data:
             return jsonify({"error": "No data provided"}), 400
 
-        # Validate required features
-        required_features = {
-            'Total_Claims_Per_Bene',
-            'TimeInHptal',
-            'Provider_Claim_Frequency',
-            'ChronicCond_stroke_Yes',
-            'DeductibleAmtPaid',
-            'NoOfMonths_PartBCov',
-            'NoOfMonths_PartACov',
-            'OPD_Flag_Yes',
-            'Diagnosis_Count',
-            'ChronicDisease_Count',
-            'Age'
-        }
-
-        missing = required_features - set(data.keys())
+        # Validate required fields
+        required = [
+            'Total_Claims_Per_Bene', 'TimeInHptal', 'Provider_Claim_Frequency',
+            'ChronicCond_stroke_Yes', 'DeductibleAmtPaid', 'NoOfMonths_PartBCov',
+            'NoOfMonths_PartACov', 'OPD_Flag_Yes', 'Diagnosis_Count',
+            'ChronicDisease_Count', 'Age'
+        ]
+        missing = [f for f in required if f not in data]
         if missing:
-            return jsonify({"error": f"Missing required claim features: {sorted(missing)}"}), 400
+            return jsonify({"error": f"Missing fields: {missing}"}), 400
 
-        # Use claim-level model
+        # Step 1: Run ML prediction using predictor1.py
         from predictor1 import predict_claim_fraud
         df = pd.DataFrame([data])
         results, _ = predict_claim_fraud(df)
-        result = results[0]  # Single result
+        result = results[0]  # Get first (only) prediction
 
+        # At this point, result has:
+        # - fraud_probability
+        # - risk_level
+        # - action
+        # - potential_savings
+        # But NO AI explanation yet
+
+        # Step 2: Generate AI explanation using Groq
+        explanation = get_groq_explanation_for_claim(data, result)
+
+        # Step 3: Add explanation to result
+        result['explanation'] = explanation
+
+        # Optional: Generate ClaimID if not already present
+        if 'ClaimID' not in result:
+            result['ClaimID'] = f"CL-{hash(pd.util.hash_pandas_object(df.iloc[0])[0]) % 100000:05d}"
+
+        # Step 4: Return full result
         return jsonify(result)
 
     except Exception as e:
         app.logger.error(f"Error in /predict_claim_single: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Prediction failed"}), 500
 
 @app.route('/')
 @app.route('/home')
@@ -706,18 +804,14 @@ def home():
 def inference_page():
     return render_template("claim.html")
 
-
-# Route for stream1
 @app.route('/stream1')
 def stream1():
     return render_template("stream1.html")
 
-# Route for batch1
 @app.route('/batch1')
 def batch1():
     return render_template("batch1.html")
 
-# Route for claim1
 @app.route('/claim1')
 def claim1():
     return render_template("claim1.html")
@@ -726,14 +820,13 @@ def claim1():
 @app.route('/claim_provider')
 @login_required
 def claim_provider():
-    return render_template('claim.html')  # ✅ Provider-level form
+    return render_template('claim.html') 
 
 @app.route('/claim_patient')
 @login_required
 def claim_patient():
-    return render_template('claim1.html')  # ✅ Claim-level form
+    return render_template('claim1.html')  
 
-# Create tables
 with app.app_context():
     db.create_all()
 
