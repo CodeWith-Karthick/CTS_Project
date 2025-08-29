@@ -98,36 +98,6 @@
             100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
 
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: help;
-        }
-
-        .tooltip .tooltip-text {
-            visibility: hidden;
-            width: 220px;
-            background-color: #1f2937;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 8px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -110px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.8rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-
-        .tooltip:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
-
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -181,7 +151,7 @@
 
         @media (min-width: 768px) {
             .mode-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
     </style>
@@ -209,7 +179,7 @@
                 </div>
             </div>
             <div class="flex items-center space-x-4 text-sm">
-                <span class="hidden md:block text-gray-500">v2.3 • AI Model: XG Boost + Groq </span>
+                <span class="hidden md:block text-gray-500">v2.3 • AI Model: Random Forest + XAI</span>
                 <button id="logout-btn" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:bg-red-600 transition-colors duration-200">
                     <i class="fas fa-sign-out-alt mr-2"></i>
                     Logout
@@ -296,29 +266,10 @@
 
             <!-- Dynamic Options -->
             <div id="mode-options" class="hidden mode-grid gap-6">
-
-                <!-- Stream Mode (Only for Provider) -->
-                <div id="stream-card" class="bg-white p-6 rounded-2xl border border-gray-200 hover-glow shadow-sm transition-all duration-300 text-center">
-                    <div class="flex items-center justify-center mb-4">
-                        <div class="p-3 rounded-full bg-blue-100 text-blue-500">
-                            <i id="mode-icon" class="fas fa-stream text-2xl"></i>
-                        </div>
-                    </div>
-                    <h3 id="mode-title" class="text-xl font-semibold text-gray-900 mb-3">Stream Mode</h3>
-                    <p id="mode-desc" class="text-gray-600 mb-6 text-sm">
-                        Monitor claims in real time with AI-powered fraud scoring under 3 seconds.
-                    </p>
-                    <a href="#" id="action-link"
-                       class="inline-flex items-center justify-center px-6 py-3 bg-med-blue text-white font-semibold rounded-xl shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all duration-300">
-                        <i id="action-icon" class="fas fa-play mr-2"></i>
-                        <span id="action-text">Start Streaming</span>
-                    </a>
-                </div>
-
                 <!-- Batch Mode -->
                 <div class="bg-white p-6 rounded-2xl border border-gray-200 hover-glow shadow-sm transition-all duration-300 text-center">
                     <div class="flex items-center justify-center mb-4">
-                        <div class="p-3 rounded-full bg-green-100 text-green-500">
+                        <div id="batch-icon" class="p-3 rounded-full bg-green-100 text-green-500">
                             <i class="fas fa-upload text-2xl"></i>
                         </div>
                     </div>
@@ -336,7 +287,7 @@
                 <!-- Single Analysis Mode -->
                 <div class="bg-white p-6 rounded-2xl border border-gray-200 hover-glow shadow-sm transition-all duration-300 text-center">
                     <div class="flex items-center justify-center mb-4">
-                        <div class="p-3 rounded-full bg-purple-100 text-purple-500">
+                        <div id="single-icon" class="p-3 rounded-full bg-purple-100 text-purple-500">
                             <i class="fas fa-edit text-2xl"></i>
                         </div>
                     </div>
@@ -350,7 +301,6 @@
                         Analyze Single Entry
                     </a>
                 </div>
-
             </div>
         </section>
 
@@ -396,155 +346,112 @@
 
     <!-- Scripts -->
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Animate metrics
-            const metrics = document.querySelectorAll('.metric-value');
-            const animateValue = (element, start, end, duration) => {
-                let startTimestamp = null;
-                const step = (timestamp) => {
-                    if (!startTimestamp) startTimestamp = timestamp;
-                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                    const decimals = element.dataset.target.includes('.') ? element.dataset.target.split('.')[1].length : 0;
-                    const currentValue = start + progress * (end - start);
-                    element.textContent = parseFloat(currentValue).toFixed(decimals);
-                    if (progress < 1) {
-                        window.requestAnimationFrame(step);
-                    } else {
-                        element.textContent = element.dataset.target;
-                    }
-                };
-                window.requestAnimationFrame(step);
-            };
-
-            metrics.forEach((metric, i) => {
-                metric.classList.add('is-visible');
-                setTimeout(() => {
-                    const target = metric.dataset.target.includes(':') ? 0 : parseFloat(metric.dataset.target);
-                    animateValue(metric, 0, target, 1500);
-                }, 400 + i * 150);
-            });
-
-            // Modal Logic
-            const logoutBtn = document.getElementById('logout-btn');
-            const logoutModal = document.getElementById('logout-modal');
-            const cancelLogoutBtn = document.getElementById('cancel-logout-btn');
-
-            logoutBtn.addEventListener('click', () => {
-                logoutModal.classList.add('is-active');
-            });
-
-            cancelLogoutBtn.addEventListener('click', () => {
-                logoutModal.classList.remove('is-active');
-            });
-
-            window.addEventListener('click', (event) => {
-                if (event.target === logoutModal) {
-                    logoutModal.classList.remove('is-active');
+    document.addEventListener('DOMContentLoaded', () => {
+        // Animate metrics
+        const metrics = document.querySelectorAll('.metric-value');
+        const animateValue = (element, start, end, duration) => {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const decimals = element.dataset.target.includes('.') ? element.dataset.target.split('.')[1].length : 0;
+                const currentValue = start + progress * (end - start);
+                element.textContent = parseFloat(currentValue).toFixed(decimals);
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                } else {
+                    element.textContent = element.dataset.target;
                 }
-            });
-
-            // Dynamic Mode Selection
-            const providerBtn = document.getElementById('provider-btn');
-            const claimBtn = document.getElementById('claim-btn');
-            const modeOptions = document.getElementById('mode-options');
-            const streamCard = document.getElementById('stream-card');
-
-            const modeTitle = document.getElementById('mode-title');
-            const modeDesc = document.getElementById('mode-desc');
-            const actionLink = document.getElementById('action-link');
-            const actionText = document.getElementById('action-text');
-            const actionIcon = document.getElementById('action-icon');
-            const modeIcon = document.getElementById('mode-icon');
-
-            const batchTitle = document.getElementById('batch-title');
-            const batchLink = document.getElementById('batch-link');
-            const singleTitle = document.getElementById('single-title');
-            const singleLink = document.getElementById('single-link');
-
-            // URLs
-            const providerUrls = {
-                stream: "{{ url_for('stream_page') }}",
-                batch: "{{ url_for('batch_page') }}",
-                single: "{{ url_for('claim_provider') }}"
             };
-
-            const claimUrls = {
-                file: "{{ url_for('batch1') }}",
-                single: "{{ url_for('claim_patient') }}"
-            };
-
-            // Provider Mode — Show all 3
-            providerBtn.addEventListener('click', () => {
-                modeOptions.classList.remove('hidden');
-                streamCard.classList.remove('hidden');
-                setTimeout(() => modeOptions.scrollIntoView({ behavior: 'smooth' }), 100);
-
-                modeTitle.textContent = "Stream Mode";
-                modeDesc.textContent = "Monitor claims in real time with AI-powered fraud scoring under 3 seconds.";
-                actionText.textContent = "Start Streaming";
-                actionIcon.className = "fas fa-play mr-2";
-                modeIcon.className = "fas fa-stream text-2xl";
-                actionLink.href = providerUrls.stream;
-
-                batchTitle.textContent = "Batch Mode";
-                batchLink.href = providerUrls.batch;
-
-                singleTitle.textContent = "Single Analysis Mode";
-                singleLink.href = providerUrls.single;
-            });
-
-            // Claim Mode — Hide Stream card, show only Batch & Single
-            claimBtn.addEventListener('click', () => {
-                modeOptions.classList.remove('hidden');
-                streamCard.classList.add('hidden');
-                setTimeout(() => modeOptions.scrollIntoView({ behavior: 'smooth' }), 100);
-
-                batchTitle.textContent = "Claim-Batch Mode";
-                batchLink.href = claimUrls.file;
-
-                singleTitle.textContent = "Claim-Single-Analysis Mode";
-                singleLink.href = claimUrls.single;
-            });
-        });
-    </script>
-
-    <!-- Particles Background -->
-    <script>
-        window.onload = function() {
-            const canvas = document.getElementById("particles");
-            const ctx = canvas.getContext("2d");
-
-            function resizeCanvas() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            }
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-
-            let dots = Array(60).fill().map(() => ({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                dx: (Math.random() - 0.5) * 0.5,
-                dy: (Math.random() - 0.5) * 0.5
-            }));
-
-            function animate() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                dots.forEach(d => {
-                    d.x += d.dx;
-                    d.y += d.dy;
-                    if (d.x < 0 || d.x > canvas.width) d.dx *= -1;
-                    if (d.y < 0 || d.y > canvas.height) d.dy *= -1;
-
-                    ctx.beginPath();
-                    ctx.arc(d.x, d.y, 2, 0, Math.PI * 2);
-                    ctx.fillStyle = "rgba(59, 130, 246, 0.4)";
-                    ctx.fill();
-                });
-                requestAnimationFrame(animate);
-            }
-            animate();
+            window.requestAnimationFrame(step);
         };
-    </script>
+
+        metrics.forEach((metric, i) => {
+            metric.classList.add('is-visible');
+            setTimeout(() => {
+                const target = metric.dataset.target.includes(':') ? 0 : parseFloat(metric.dataset.target);
+                animateValue(metric, 0, target, 1500);
+            }, 400 + i * 150);
+        });
+
+        // Modal Logic
+        const logoutBtn = document.getElementById('logout-btn');
+        const logoutModal = document.getElementById('logout-modal');
+        const cancelLogoutBtn = document.getElementById('cancel-logout-btn');
+
+        logoutBtn.addEventListener('click', () => {
+            logoutModal.classList.add('is-active');
+        });
+
+        cancelLogoutBtn.addEventListener('click', () => {
+            logoutModal.classList.remove('is-active');
+        });
+
+        window.addEventListener('click', (event) => {
+            if (event.target === logoutModal) {
+                logoutModal.classList.remove('is-active');
+            }
+        });
+
+        // Dynamic Mode Selection
+        const providerBtn = document.getElementById('provider-btn');
+        const claimBtn = document.getElementById('claim-btn');
+        const modeOptions = document.getElementById('mode-options');
+        const batchTitle = document.getElementById('batch-title');
+        const batchLink = document.getElementById('batch-link');
+        const singleTitle = document.getElementById('single-title');
+        const singleLink = document.getElementById('single-link');
+        const batchIcon = document.getElementById('batch-icon');
+        const singleIcon = document.getElementById('single-icon');
+
+        // Use Flask-generated URLs
+        const providerUrls = {
+            batch: "{{ url_for('batch_page') }}",
+            single: "{{ url_for('claim_provider') }}"
+        };
+
+        const claimUrls = {
+            file: "{{ url_for('batch1') }}",
+            single: "{{ url_for('claim_patient') }}"
+        };
+
+        // Provider Mode
+        // Provider Mode
+providerBtn.addEventListener('click', () => {
+    modeOptions.classList.remove('hidden');
+    setTimeout(() => modeOptions.scrollIntoView({ behavior: 'smooth' }), 100);
+
+    // Update batch
+    batchTitle.textContent = "Provider-Batch Mode";
+    batchLink.href = providerUrls.batch;
+    batchLink.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i> Upload Provider File';
+    batchIcon.innerHTML = '<i class="fas fa-cloud-upload-alt text-2xl"></i>';
+
+    // Update single
+    singleTitle.textContent = "Provider-Single Analysis";
+    singleLink.href = providerUrls.single;
+    singleLink.innerHTML = '<i class="fas fa-search-plus mr-2"></i> Analyze Provider';
+    singleIcon.innerHTML = '<i class="fas fa-search-plus text-2xl"></i>';
+});
+
+        // Claim Mode
+        claimBtn.addEventListener('click', () => {
+            modeOptions.classList.remove('hidden');
+            setTimeout(() => modeOptions.scrollIntoView({ behavior: 'smooth' }), 100);
+
+            // Update batch
+            batchTitle.textContent = "Claim-Batch Mode";
+            batchLink.href = claimUrls.file;
+            batchLink.innerHTML = '<i class="fas fa-file-csv mr-2"></i> Upload Claim CSV';
+            batchIcon.innerHTML = '<i class="fas fa-file-csv text-2xl"></i>';
+
+            // Update single
+            singleTitle.textContent = "Claim-Single Analysis";
+            singleLink.href = claimUrls.single;
+            singleLink.innerHTML = '<i class="fas fa-check-circle mr-2"></i> Validate Claim';
+            singleIcon.innerHTML = '<i class="fas fa-check-circle text-2xl"></i>';
+        });
+    });
+</script>
 </body>
 </html>
